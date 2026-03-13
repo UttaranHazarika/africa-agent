@@ -1,5 +1,7 @@
 import uuid
-from langgraph.graph import StateGraph,END
+from typing import TypedDict, Optional, List
+
+from langgraph.graph import StateGraph, END
 
 from app.agents.risk_agent import risk_agent
 from app.agents.policy_agent import policy_agent
@@ -8,71 +10,104 @@ from app.agents.decision_agent import decision_agent
 from app.agents.governance_agent import governance_agent
 
 
-class State(dict):
-    pass
+# -------- STATE DEFINITION --------
+
+class State(TypedDict, total=False):
+
+    trace_id: str
+    application: dict
+
+    risk_score: float
+    model_confidence: float
+
+    policy_status: str
+
+    cases: List[str]
+
+    decision: str
+    explanation: str
+    llm_confidence: float
 
 
-def risk_node(state):
+# -------- AGENT NODES --------
 
-    risk,conf=risk_agent.run(state["application"])
+def risk_node(state: State):
 
-    return {"risk_score":risk,"model_confidence":conf}
-
-
-def policy_node(state):
-
-    status=policy_agent(state["application"])
-
-    return {"policy_status":status}
-
-
-def memory_node(state):
-
-    return {"cases":memory_agent(state["application"])}
-
-
-def decision_node(state):
-
-    result=decision_agent(state)
+    risk, conf = risk_agent.run(state["application"])
 
     return {
-        "decision":result.decision,
-        "explanation":result.explanation,
-        "llm_confidence":result.confidence_level
+        "risk_score": risk,
+        "model_confidence": conf
     }
 
 
-def governance_node(state):
+def policy_node(state: State):
 
-    governance_agent(state["trace_id"],state["decision"])
+    status = policy_agent(state["application"])
+
+    return {
+        "policy_status": status
+    }
+
+
+def memory_node(state: State):
+
+    cases = memory_agent(state["application"])
+
+    return {
+        "cases": cases
+    }
+
+
+def decision_node(state: State):
+
+    result = decision_agent(state)
+
+    return {
+        "decision": result.decision,
+        "explanation": result.explanation,
+        "llm_confidence": result.confidence_level
+    }
+
+
+def governance_node(state: State):
+
+    governance_agent(state["trace_id"], state["decision"])
 
     return {}
 
 
-builder=StateGraph(State)
+# -------- GRAPH CONSTRUCTION --------
 
-builder.add_node("risk",risk_node)
-builder.add_node("policy",policy_node)
-builder.add_node("memory",memory_node)
-builder.add_node("decision",decision_node)
-builder.add_node("governance",governance_node)
+builder = StateGraph(State)
+
+builder.add_node("risk", risk_node)
+builder.add_node("policy", policy_node)
+builder.add_node("memory", memory_node)
+builder.add_node("decision", decision_node)
+builder.add_node("governance", governance_node)
 
 builder.set_entry_point("risk")
 
-builder.add_edge("risk","policy")
-builder.add_edge("policy","memory")
-builder.add_edge("memory","decision")
-builder.add_edge("decision","governance")
-builder.add_edge("governance",END)
+builder.add_edge("risk", "policy")
+builder.add_edge("policy", "memory")
+builder.add_edge("memory", "decision")
+builder.add_edge("decision", "governance")
+builder.add_edge("governance", END)
 
-graph=builder.compile()
+graph = builder.compile()
 
 
-def run_workflow(application):
+# -------- WORKFLOW ENTRY --------
 
-    state={
-        "trace_id":str(uuid.uuid4()),
-        "application":application
+def run_workflow(application: dict):
+
+    state = {
+        "trace_id": str(uuid.uuid4()),
+        "application": application
     }
 
-    return graph.invoke(state)
+    result = graph.invoke(state)
+
+    return result
+
