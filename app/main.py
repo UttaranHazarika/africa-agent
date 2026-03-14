@@ -16,5 +16,6 @@ app.add_middleware(
 @app.post("/assess")
 def assess_credit(application: LoanApplication):
 
-    return run_workflow(application.dict())
+    return run_workflow(application.model_dump())
+
 

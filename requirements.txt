@@ -11,3 +11,5 @@ scikit-learn
 numpy
 python-dotenv
 langchain-community
+pytest
+httpx
